@@ -1,6 +1,7 @@
 package com.example.plugins
 
 import com.example.entity.User
+import com.example.transport.sendAndReceive
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -11,7 +12,6 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 object SessionStorage {
-    val users = ConcurrentHashMap<String, User>()
     val sessions = ConcurrentHashMap<String, User>()
 }
 fun Application.configureRouting() {
@@ -19,12 +19,15 @@ fun Application.configureRouting() {
         post("/registration") {
             val user = call.receive<User>()
 
+            /*
             if (SessionStorage.users.containsKey(user.username)) {
                 call.respond(HttpStatusCode.Conflict, "User already exists")
                 return@post
             }
+             */
 
-            SessionStorage.users[user.username] = user
+            //todo отправить запрос через редис на бд сервис.
+            //если все ок, то дальше. Если такой пользователь уже есть - плохой ответ.
 
             // Создаем токен сессии
             val token = UUID.randomUUID().toString()
@@ -32,6 +35,24 @@ fun Application.configureRouting() {
 
             // Отправляем токен пользователю
             call.respond(hashMapOf("token" to token))
+        }
+
+        post("/login") {
+            val user = call.receive<User>()
+
+            //todo отправить запрос через redis на бд.
+
+            // Создаем токен сессии
+            val token = UUID.randomUUID().toString()
+            SessionStorage.sessions[token] = user
+
+            // Отправляем токен пользователю
+            call.respond(hashMapOf("token" to token))
+        }
+
+        get("test") {
+            val a = sendAndReceive("myName", "myPride")
+            call.respond(HttpStatusCode.OK, a?.username + a?.password)
         }
 
         get("/profile") {

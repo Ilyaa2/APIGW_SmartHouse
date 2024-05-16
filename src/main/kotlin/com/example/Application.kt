@@ -21,7 +21,7 @@ fun Application.configureSerialization() {
 }
 fun Application.module() {
     configureSerialization()
-    configureSockets()
+    //configureSockets()
     configureRouting()
 }
 /*
@@ -34,10 +34,10 @@ fun Application.module() {
 post /registration  -  {username: "ilya", password: "someshit"} {} - регистрация
 post /login     -      {username: "ilya", password: "someshit"} {} - логин
 get /device     -    {}     {devices: [{id: 1, type: "teapot"}, {id: 1, type: "water_sensor"}]}  -  получить все девайсы
-get /device/{id}  -   {}   {id: 1, type: "teapot"}  -     получить девайс по id (узнать тип устройства)
+get /device/{id}  -   {}   {id: 1, type: "teapot", mode: "off"}  -     получить девайс по id (узнать тип устройства)   -    тут я должен
 post /device    -   {type: "teapot"}   {id: 1, type: "teapot"}   -      создать девайс
 post /device/settings/{id}   -   {value : 30}  {}
 post /device/power/{id}      -   {mode: "off"}  {}
-get /device/info/{id}        -   {}        {все что угодно}
+get /device/info/{id}        -   {}        {mode: "off", temperature: 30}
  */
 

@@ -22,7 +22,6 @@ fun Application.configureSerialization() {
 fun Application.module() {
     configureSerialization()
     configureSockets()
-    configureSecurity()
     configureRouting()
 }
 /*

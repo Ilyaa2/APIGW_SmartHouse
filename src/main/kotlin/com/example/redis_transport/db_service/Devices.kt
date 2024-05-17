@@ -1,87 +1,95 @@
 package com.example.redis_transport.db_service
 
-import com.example.entity.User
-import io.lettuce.core.RedisClient
-import io.lettuce.core.api.StatefulRedisConnection
+import com.example.entity.*
+import com.example.redis_transport.RedisConnection
+import com.example.redis_transport.mapper
 import io.lettuce.core.pubsub.RedisPubSubAdapter
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
-object DevicesDBService {
-    private var redisClient: RedisClient = RedisClient.create("redis://localhost:6379")
-    private var connection: StatefulRedisConnection<String, String> = redisClient.connect()
+data class InsertDeviceMessage(val action: String, val table: String, val data: DeviceRequestData)
 
-    fun registerUserInDB(userdata: User): ResponseData? {
-        return runBlocking {
-            sendAndGetUserCredsToDB(userdata)
-        }
+data class SelectDeviceMessage(val action: String, val table: String, val conditions: DeviceCondition)
+
+fun getAllDevicesFromDB(userdata: User): Array<CreatedDevice>? {
+    return runBlocking {
+        getDevicesFromDB(userdata)
     }
+}
 
-    fun loginUserInDB(userdata: User): Boolean {
-        return runBlocking {
-            checkExistenceOfUserCredsToDB(userdata)
-        }
+fun getDeviceFromDB(userdata: User, id: Long): CreatedDevice? {
+    val selectMessage =
+        SelectDeviceMessage("select", "userDevices", DeviceCondition(userdata.username, userdata.password, id))
+    return runBlocking {
+        getOrCreateDeviceInDB(selectMessage)
     }
+}
 
-    //todo добавить метод на добавление устройства в бд
+fun createDeviceInDB(userdata: User, deviceType: String): CreatedDevice? {
+    val data = DeviceRequestData(userdata.username, userdata.password, deviceType)
+    val insertMessage = InsertDeviceMessage("insert", "userDevices", data)
+    return runBlocking {
+        getOrCreateDeviceInDB(insertMessage)
+    }
+}
 
-    private suspend fun sendAndGetUserCredsToDB(userdata: User): ResponseData? {
-        val pubSubConnection = redisClient.connectPubSub()
-        val pubSubCommands = pubSubConnection.sync()
+private suspend fun getDevicesFromDB(userData: User): Array<CreatedDevice>? {
+    val pubSubConnection = RedisConnection.client.connectPubSub()
+    val pubSubCommands = pubSubConnection.sync()
 
-        val insertMessage = InsertMessage("insert", "user", userdata)
-        val insertMessageJson = mapper.writeValueAsString(insertMessage)
+    val selectUserMessage =
+        SelectUserMessage("select", "userDevices", Conditions(userData.username, userData.password))
 
+    val selectMessageJson = mapper.writeValueAsString(selectUserMessage)
+    val deferredResponse = CompletableDeferred<Array<CreatedDevice>>()
 
-        val deferredResponse = CompletableDeferred<ResponseData?>()
-
-        pubSubConnection.addListener(object : RedisPubSubAdapter<String, String>() {
-            override fun message(channel: String, message: String) {
-                if (channel == receiveChannel) {
-                    val responseData = mapper.readValue(message, ResponseData::class.java)
-                    deferredResponse.complete(responseData)
-                }
+    pubSubConnection.addListener(object : RedisPubSubAdapter<String, String>() {
+        override fun message(channel: String, message: String) {
+            if (channel == receiveChannel) {
+                //MutableList
+                val devices = mapper.readValue(message, Array<CreatedDevice>::class.java)
+                deferredResponse.complete(devices)
             }
-        })
+        }
+    })
 
-        pubSubCommands.subscribe(receiveChannel)
+    pubSubCommands.subscribe(receiveChannel)
 
-        connection.async().publish(sendChannel, insertMessageJson)
+    RedisConnection.connection.async().publish(sendChannel, selectMessageJson)
 
-        val response = withTimeoutOrNull(10000) { deferredResponse.await() }
+    val response = withTimeoutOrNull(10000) { deferredResponse.await() }
 
-        pubSubConnection.close()
+    pubSubConnection.close()
 
-        return response
-    }
+    return response
+}
 
-    private suspend fun checkExistenceOfUserCredsToDB(userdata: User): Boolean {
-        val pubSubConnection = redisClient.connectPubSub()
-        val pubSubCommands = pubSubConnection.sync()
+//todo пока без mode
+private suspend fun getOrCreateDeviceInDB(message: Any): CreatedDevice? {
+    val pubSubConnection = RedisConnection.client.connectPubSub()
+    val pubSubCommands = pubSubConnection.sync()
 
-        val insertMessage = SelectMessage("select", "user", Conditions(userdata.username, userdata.password))
-        val insertMessageJson = mapper.writeValueAsString(insertMessage)
+    val messageJson = mapper.writeValueAsString(message)
 
-        val deferredResponse = CompletableDeferred<ResponseData?>()
+    val deferredResponse = CompletableDeferred<CreatedDevice?>()
 
-        pubSubConnection.addListener(object : RedisPubSubAdapter<String, String>() {
-            override fun message(channel: String, message: String) {
-                if (channel == receiveChannel) {
-                    val responseData = mapper.readValue(message, ResponseData::class.java)
-                    deferredResponse.complete(responseData)
-                }
+    pubSubConnection.addListener(object : RedisPubSubAdapter<String, String>() {
+        override fun message(channel: String, message: String) {
+            if (channel == receiveChannel) {
+                val createdDevice = mapper.readValue(message, CreatedDevice::class.java)
+                deferredResponse.complete(createdDevice)
             }
-        })
+        }
+    })
 
-        pubSubCommands.subscribe(receiveChannel)
+    pubSubCommands.subscribe(receiveChannel)
 
-        connection.async().publish(sendChannel, insertMessageJson)
+    RedisConnection.connection.async().publish(sendChannel, messageJson)
 
-        val response = withTimeoutOrNull(10000) { deferredResponse.await() }
+    val response = withTimeoutOrNull(10000) { deferredResponse.await() }
 
-        pubSubConnection.close()
+    pubSubConnection.close()
 
-        return response == null
-    }
+    return response
 }

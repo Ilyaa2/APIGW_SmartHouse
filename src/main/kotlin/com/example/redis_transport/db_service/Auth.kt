@@ -1,101 +1,66 @@
 package com.example.redis_transport.db_service
 
+import com.example.entity.CreatedUser
 import com.example.entity.User
+import com.example.redis_transport.RedisConnection
+import com.example.redis_transport.mapper
 import io.lettuce.core.RedisClient
 import io.lettuce.core.pubsub.RedisPubSubAdapter
 import kotlinx.coroutines.*
-import kotlinx.serialization.Serializable
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.lettuce.core.api.StatefulRedisConnection
 
-
-@Serializable
-data class ResponseData(val id: Int, val username: String, val password: String)
-
 //PUBLISH responseChannel "{\"id\": 1, \"username\": \"myName\", \"password\": \"myPride\"}"
-data class InsertMessage(val action: String, val table: String, val data: User)
-data class SelectMessage(val action: String, val table: String, val conditions: Conditions)
+data class InsertUserMessage(val action: String, val table: String, val data: User)
+data class SelectUserMessage(val action: String, val table: String, val conditions: Conditions)
 
 data class Conditions(val username: String, val password: String)
-
-val mapper = jacksonObjectMapper()
 
 const val receiveChannel = "responseDBChannel"
 const val sendChannel = "requestDBChannel"
 
-
 object AuthDBService {
-    private var redisClient: RedisClient = RedisClient.create("redis://localhost:6379")
-    private var connection: StatefulRedisConnection<String, String> = redisClient.connect()
+    fun registerUserInDB(userdata: User): CreatedUser? {
+        val insertUserMessage = InsertUserMessage("insert", "user", userdata)
 
-    fun registerUserInDB(userdata: User): ResponseData? {
         return runBlocking {
-            sendAndGetUserCredsToDB(userdata)
+            sendAndGetUserCredsToDB(insertUserMessage)
         }
     }
 
     fun loginUserInDB(userdata: User): Boolean {
+        val selectUserMessage = SelectUserMessage("select", "user", Conditions(userdata.username, userdata.password))
+
         return runBlocking {
-            checkExistenceOfUserCredsToDB(userdata)
+            sendAndGetUserCredsToDB(selectUserMessage) == null
         }
     }
 
-    private suspend fun sendAndGetUserCredsToDB(userdata: User): ResponseData? {
-        val pubSubConnection = redisClient.connectPubSub()
+    private suspend fun sendAndGetUserCredsToDB(message: Any): CreatedUser? {
+        val pubSubConnection = RedisConnection.client.connectPubSub()
         val pubSubCommands = pubSubConnection.sync()
 
-        val insertMessage = InsertMessage("insert", "user", userdata)
-        val insertMessageJson = mapper.writeValueAsString(insertMessage)
+        val insertMessageJson = mapper.writeValueAsString(message)
 
-
-        val deferredResponse = CompletableDeferred<ResponseData?>()
+        val deferredResponse = CompletableDeferred<CreatedUser?>()
 
         pubSubConnection.addListener(object : RedisPubSubAdapter<String, String>() {
             override fun message(channel: String, message: String) {
                 if (channel == receiveChannel) {
-                    val responseData = mapper.readValue(message, ResponseData::class.java)
-                    deferredResponse.complete(responseData)
+                    val createdUser = mapper.readValue(message, CreatedUser::class.java)
+                    deferredResponse.complete(createdUser)
                 }
             }
         })
 
         pubSubCommands.subscribe(receiveChannel)
 
-        connection.async().publish(sendChannel, insertMessageJson)
+        RedisConnection.connection.async().publish(sendChannel, insertMessageJson)
 
         val response = withTimeoutOrNull(10000) { deferredResponse.await() }
 
         pubSubConnection.close()
 
         return response
-    }
-
-    private suspend fun checkExistenceOfUserCredsToDB(userdata: User): Boolean {
-        val pubSubConnection = redisClient.connectPubSub()
-        val pubSubCommands = pubSubConnection.sync()
-
-        val insertMessage = SelectMessage("select", "user", Conditions(userdata.username, userdata.password))
-        val insertMessageJson = mapper.writeValueAsString(insertMessage)
-
-        val deferredResponse = CompletableDeferred<ResponseData?>()
-
-        pubSubConnection.addListener(object : RedisPubSubAdapter<String, String>() {
-            override fun message(channel: String, message: String) {
-                if (channel == receiveChannel) {
-                    val responseData = mapper.readValue(message, ResponseData::class.java)
-                    deferredResponse.complete(responseData)
-                }
-            }
-        })
-
-        pubSubCommands.subscribe(receiveChannel)
-
-        connection.async().publish(sendChannel, insertMessageJson)
-
-        val response = withTimeoutOrNull(10000) { deferredResponse.await() }
-
-        pubSubConnection.close()
-
-        return response == null
     }
 }

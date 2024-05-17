@@ -29,9 +29,6 @@ object SessionStorage {
 }
 
 fun Application.configureRouting() {
-    //todo сделать прослушивание канала alarm в который посылаются сообщений и отправка ире
-    //alarm    -       device_type/event
-
     routing {
         post("/registration") {
             val user: User = call.receive<User>()
@@ -91,12 +88,13 @@ fun Application.configureRouting() {
                 return@get
             }
 
-            if (call.parameters["id"] != null) {
+            if (call.parameters["id"] == null) {
                 call.respond(HttpStatusCode.BadRequest, "id of device missed in the query")
                 return@get
             }
 
             val user = SessionStorage.sessions[token]!!
+
             val id = call.parameters["id"]!!.toLong()
 
             val createdDevice = getDeviceFromDB(user, id)
@@ -125,6 +123,7 @@ fun Application.configureRouting() {
                 call.respond(HttpStatusCode.InternalServerError, "db service doesn't response")
                 return@post
             }
+
             createDevice(user.username, createdDevice)
             call.respond(createdDevice)
         }
@@ -136,12 +135,13 @@ fun Application.configureRouting() {
                 return@post
             }
 
-            if (call.parameters["id"] != null) {
+            if (call.parameters["id"] == null) {
                 call.respond(HttpStatusCode.InternalServerError, "device service doesn't response")
                 return@post
             }
 
             val settingValue: DeviceSettingValue = call.receive<DeviceSettingValue>()
+
             val user = SessionStorage.sessions[token]!!
             val id = call.parameters["id"]!!.toLong()
             val response = setDeviceValue(user.username, id, settingValue.value)
@@ -155,7 +155,6 @@ fun Application.configureRouting() {
             if (result.wasError){
                 call.respond(HttpStatusCode.BadRequest, result.description)
             } else {
-                //todo может нужно посылать текст. Через call.respondText
                 call.respond(HttpStatusCode.OK, result.description)
             }
         }
@@ -167,7 +166,7 @@ fun Application.configureRouting() {
                 return@post
             }
 
-            if (call.parameters["id"] != null) {
+            if (call.parameters["id"] == null) {
                 call.respond(HttpStatusCode.InternalServerError, "device service doesn't response")
                 return@post
             }
@@ -203,7 +202,7 @@ fun Application.configureRouting() {
                 return@get
             }
 
-            if (call.parameters["id"] != null) {
+            if (call.parameters["id"] == null) {
                 call.respond(HttpStatusCode.InternalServerError, "device service doesn't response")
                 return@get
             }
@@ -221,7 +220,6 @@ fun Application.configureRouting() {
             if (result.wasError){
                 call.respond(HttpStatusCode.BadRequest, result.description)
             } else {
-                //todo может нужно посылать текст. Через call.respondText
                 call.respond(HttpStatusCode.OK, result.description)
             }
         }

@@ -10,7 +10,12 @@ import kotlinx.coroutines.*
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.lettuce.core.api.StatefulRedisConnection
 
-//PUBLISH responseChannel "{\"id\": 1, \"username\": \"myName\", \"password\": \"myPride\"}"
+//PUBLISH responseDBChannel "{\"id\": 1, \"username\": \"myName\", \"password\": \"myPride\"}"
+//PUBLISH responseDBChannel "{\"id\": 1, \"type\": \"teapot\"}"
+//PUBLISH responseDBChannel "{\"id\": 2, \"type\": \"water_sensor\"}"
+
+//PUBLISH responseDBChannel "[{\"id\": 1, \"type\": \"teapot\"}, {\"id\": 2, \"type\": \"water_sensor\"}]"
+//PUBLISH myName {value : 30}
 data class InsertUserMessage(val action: String, val table: String, val data: User)
 data class SelectUserMessage(val action: String, val table: String, val conditions: Conditions)
 
@@ -45,7 +50,6 @@ object AuthDBService {
         val pubSubCommands = pubSubConnection.sync()
 
         val insertMessageJson = mapper.writeValueAsString(message)
-
         val deferredResponse = CompletableDeferred<CreatedUser?>()
 
         pubSubConnection.addListener(object : RedisPubSubAdapter<String, String>() {

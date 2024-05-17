@@ -20,6 +20,8 @@ const val receiveChannel = "responseDBChannel"
 const val sendChannel = "requestDBChannel"
 
 object AuthDBService {
+
+    //todo если не получается, то нужно ставить идентификаторы на сообщения и проверять тот ли идентификатор у меня.
     fun registerUserInDB(userdata: User): CreatedUser? {
         val insertUserMessage = InsertUserMessage("insert", "user", userdata)
 

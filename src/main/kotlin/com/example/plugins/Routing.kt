@@ -14,6 +14,7 @@ import com.example.redis_transport.devices_service.getDeviceInfo
 import com.example.redis_transport.devices_service.setDeviceValue
 import com.example.redis_transport.devices_service.setModeOnDevice
 import com.example.utils.hashPassword
+import com.example.utils.isDeviceModeCorrect
 import com.example.utils.parseResponse
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -172,6 +173,12 @@ fun Application.configureRouting() {
             }
 
             val deviceMode: DeviceSettingMode = call.receive<DeviceSettingMode>()
+
+            if (!isDeviceModeCorrect(deviceMode.mode)) {
+                call.respond(HttpStatusCode.BadRequest, "incorrect device mode")
+                return@post
+            }
+
             val user = SessionStorage.sessions[token]!!
             val id = call.parameters["id"]!!.toLong()
             val response = setModeOnDevice(user.username, id, deviceMode.mode)

@@ -5,7 +5,7 @@ import com.example.redis_transport.RedisConnection
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
-val loggerChannel = "log"
+const val loggerChannel = "log"
 
 fun sendLog(event: String) {
     val pubSubConnection = RedisConnection.client.connectPubSub()

@@ -1,10 +1,18 @@
 package com.example
 
 import com.example.plugins.*
+import com.example.redis_transport.RedisConnection
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.request.*
+import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.contentnegotiation.*
+import io.lettuce.core.pubsub.RedisPubSubAdapter
+import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
+
 
 fun main(args: Array<String>) {
     io.ktor.server.netty.EngineMain.main(args)
@@ -19,10 +27,49 @@ fun Application.configureSerialization() {
         })
     }
 }
+
 fun Application.module() {
     configureSerialization()
     configureRouting()
+
+    launchRedisListener()
 }
+
+fun Application.launchRedisListener() {
+    // Запуск Redis слушателя в фоновом режиме
+    GlobalScope.launch {
+        startRedisListener()
+    }
+}
+
+const val alarmChannel = "alarmChannel"
+const val mobileAppUrl = "http://localhost:/8081"
+suspend fun startRedisListener() {
+    val pubSubConnection = RedisConnection.client.connectPubSub()
+    val pubSubCommands = pubSubConnection.sync()
+    val client = HttpClient(CIO)
+
+    pubSubConnection.addListener(object : RedisPubSubAdapter<String, String>() {
+        override fun message(channel: String, message: String) {
+            if (channel == alarmChannel) {
+                println("Received message from Redis: $message")
+                try {
+                    runBlocking {
+                        client.post(mobileAppUrl) {
+                            contentType(ContentType.Application.Json)
+                            setBody(message)
+                        }
+                    }
+                } catch (e: Exception){
+                    e.printStackTrace()
+                }
+            }
+        }
+    })
+    pubSubCommands.subscribe(alarmChannel)
+    //todo может тут нужно ставить какую-то блокировку или бесконечный цикл
+}
+
 /*
 авторизация будет на сессиях. В случае успеха на ручке login тебе возвратится токен, который ты у себя сохранишь для
 каждого пользователя и будешь вставлять его в заголовок Authorization у каждого запроса. Если я не получу этот токен или

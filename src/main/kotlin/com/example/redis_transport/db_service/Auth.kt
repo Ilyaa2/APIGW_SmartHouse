@@ -20,8 +20,10 @@ const val receiveChannel = "responseDBChannel"
 const val sendChannel = "requestDBChannel"
 
 object AuthDBService {
+    //todo по идее с базой данных такие посылки через redis работать не будет, потому что один канал и в него идет большое кол-во ненужных сообщений от других клиентов
+    //сообщения других клиентов просто будут путаться между собой. Скорее всего нужно присвоить id сообщению перед посылкой на бд сервис и
+    //в лисенере ожидать что придет точно такой же id и только тогда выходить из него и закрывать соединение.
 
-    //todo если не получается, то нужно ставить идентификаторы на сообщения и проверять тот ли идентификатор у меня.
     fun registerUserInDB(userdata: User): CreatedUser? {
         val insertUserMessage = InsertUserMessage("insert", "user", userdata)
 

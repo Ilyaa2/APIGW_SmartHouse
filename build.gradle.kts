@@ -36,4 +36,5 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
     implementation("io.lettuce:lettuce-core:6.1.3.RELEASE")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.+")
+    implementation("io.ktor:ktor-client-cio:$ktor_version")
 }

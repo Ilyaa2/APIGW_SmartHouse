@@ -32,7 +32,7 @@ fun Application.module() {
     configureSerialization()
     configureRouting()
 
-    launchRedisListener()
+    //launchRedisListener()
 }
 
 fun Application.launchRedisListener() {
@@ -57,6 +57,7 @@ suspend fun startRedisListener() {
             if (channel == alarmChannel) {
                 println("Received message from Redis: $message")
                 try {
+                    //alarm uid/device_type/event
                     runBlocking {
                         client.post(mobileAppUrl) {
                             contentType(ContentType.Application.Json)

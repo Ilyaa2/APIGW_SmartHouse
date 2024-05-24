@@ -32,7 +32,7 @@ fun Application.configureRouting() {
     routing {
         post("/registration") {
             val user: User = call.receive<User>()
-            user.username = hashPassword(user.username)
+            user.password = hashPassword(user.password)
 
             val createdUser = registerUserInDB(User(user.username, user.password))
             if (createdUser == null) {
@@ -48,7 +48,7 @@ fun Application.configureRouting() {
 
         post("/login") {
             val user = call.receive<User>()
-            user.username = hashPassword(user.username)
+            user.password = hashPassword(user.password)
 
             val isValid = loginUserInDB(user)
 

@@ -7,6 +7,7 @@ import io.lettuce.core.pubsub.RedisPubSubAdapter
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.random.Random
 
 data class InsertDeviceMessage(val action: String, val table: String, val data: DeviceRequestData)
 
@@ -65,7 +66,6 @@ private suspend fun getDevicesFromDB(userData: User): Array<CreatedDevice>? {
     return response
 }
 
-//todo пока без mode
 private suspend fun getOrCreateDeviceInDB(message: Any): CreatedDevice? {
     val pubSubConnection = RedisConnection.client.connectPubSub()
     val pubSubCommands = pubSubConnection.sync()

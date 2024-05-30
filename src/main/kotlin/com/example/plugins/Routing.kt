@@ -71,7 +71,7 @@ fun Application.configureRouting() {
             }
 
             val user = SessionStorage.sessions[token]!!
-            val devices = getAllDevicesFromDB(user)
+            val devices = getAllDevicesFromDB(user)?.data
 
             if (devices == null) {
                 call.respond(HttpStatusCode.InternalServerError, "db service doesn't response")
@@ -97,7 +97,7 @@ fun Application.configureRouting() {
 
             val id = call.parameters["id"]!!.toLong()
 
-            val createdDevice = getDeviceFromDB(user, id)
+            val createdDevice = getDeviceFromDB(user, id)?.data
 
             if (createdDevice == null) {
                 call.respond(HttpStatusCode.InternalServerError, "db service doesn't response")
@@ -117,7 +117,7 @@ fun Application.configureRouting() {
             val user = SessionStorage.sessions[token]!!
             val deviceType = call.receive<DeviceType>()
 
-            val createdDevice = createDeviceInDB(user, deviceType.type)
+            val createdDevice = createDeviceInDB(user, deviceType.type)?.data
 
             if (createdDevice == null) {
                 call.respond(HttpStatusCode.InternalServerError, "db service doesn't response")

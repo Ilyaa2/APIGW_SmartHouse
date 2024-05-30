@@ -10,14 +10,19 @@ import kotlinx.coroutines.*
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.lettuce.core.api.StatefulRedisConnection
 
-//PUBLISH responseDBChannel "{\"id\": 1, \"username\": \"myName\", \"password\": \"myPride\"}"
-//PUBLISH responseDBChannel "{\"id\": 1, \"type\": \"teapot\"}"
-//PUBLISH responseDBChannel "{\"id\": 2, \"type\": \"water_sensor\"}"
+//PUBLISH responseDBChannel "{\"req\":2, \"id\": 1, \"username\": \"myName\", \"password\": \"myPride\"}"
+//PUBLISH responseDBChannel "{\"req\":1, \"id\": 1, \"username\": \"myName\", \"password\": \"myPride\"}"
 
-//PUBLISH responseDBChannel "[{\"id\": 1, \"type\": \"teapot\"}, {\"id\": 2, \"type\": \"water_sensor\"}]"
+
+
+//PUBLISH responseDBChannel "{\"req\": 1, \"data\":{ \"id\": 1, \"type\": \"teapot\"}}"
+//PUBLISH responseDBChannel "{\"req\": 1, \"data\":{ \"id\": 2, \"type\": \"water_sensor\"}}"
+
+
+//PUBLISH responseDBChannel "{ \"req\": 1, \"data\":[{\"id\": 1, \"type\": \"teapot\"}, {\"id\": 2, \"type\": \"water_sensor\"}]}"
 //PUBLISH myName {value : 30}
-data class InsertUserMessage(val action: String, val table: String, val data: User)
-data class SelectUserMessage(val action: String, val table: String, val conditions: Conditions)
+data class InsertUserMessage(val req: Long, val action: String, val table: String, val data: User)
+data class SelectUserMessage(val req: Long, val action: String, val table: String, val conditions: Conditions)
 
 data class Conditions(val username: String, val password: String)
 
@@ -30,7 +35,8 @@ object AuthDBService {
     //в лисенере ожидать что придет точно такой же id и только тогда выходить из него и закрывать соединение.
 
     fun registerUserInDB(userdata: User): CreatedUser? {
-        val insertUserMessage = InsertUserMessage("insert", "user", userdata)
+        val randomId = (0..Long.MAX_VALUE).random()
+        val insertUserMessage = InsertUserMessage(randomId, "insert", "user", userdata)
 
         return runBlocking {
             sendAndGetUserCredsToDB(insertUserMessage)
@@ -38,7 +44,9 @@ object AuthDBService {
     }
 
     fun loginUserInDB(userdata: User): Boolean {
-        val selectUserMessage = SelectUserMessage("select", "user", Conditions(userdata.username, userdata.password))
+        val randomId = (0..Long.MAX_VALUE).random()
+        val selectUserMessage =
+            SelectUserMessage(randomId, "select", "user", Conditions(userdata.username, userdata.password))
 
         return runBlocking {
             sendAndGetUserCredsToDB(selectUserMessage) == null
@@ -49,6 +57,17 @@ object AuthDBService {
         val pubSubConnection = RedisConnection.client.connectPubSub()
         val pubSubCommands = pubSubConnection.sync()
 
+        val tmp1 = message as? SelectUserMessage
+        val tmp2 = message as? InsertUserMessage
+        var req: Long = 0
+        if (tmp1 == null) {
+            if (tmp2 != null) {
+                req = tmp2.req
+            }
+        } else {
+            req = tmp1.req
+        }
+
         val insertMessageJson = mapper.writeValueAsString(message)
         val deferredResponse = CompletableDeferred<CreatedUser?>()
 
@@ -56,7 +75,9 @@ object AuthDBService {
             override fun message(channel: String, message: String) {
                 if (channel == receiveChannel) {
                     val createdUser = mapper.readValue(message, CreatedUser::class.java)
-                    deferredResponse.complete(createdUser)
+                    if (createdUser.req == req) {
+                        deferredResponse.complete(createdUser)
+                    }
                 }
             }
         })

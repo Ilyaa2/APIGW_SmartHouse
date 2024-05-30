@@ -7,50 +7,58 @@ import io.lettuce.core.pubsub.RedisPubSubAdapter
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.random.Random
 
-data class InsertDeviceMessage(val action: String, val table: String, val data: DeviceRequestData)
+data class InsertDeviceMessage(val req: Long, val action: String, val table: String, val data: DeviceRequestData)
 
-data class SelectDeviceMessage(val action: String, val table: String, val conditions: DeviceCondition)
+data class SelectDeviceMessage(val req: Long, val action: String, val table: String, val conditions: DeviceCondition)
 
-fun getAllDevicesFromDB(userdata: User): Array<CreatedDevice>? {
+fun getAllDevicesFromDB(userdata: User): AllDevicesResponse? {
     return runBlocking {
         getDevicesFromDB(userdata)
     }
 }
 
-fun getDeviceFromDB(userdata: User, id: Long): CreatedDevice? {
+fun getDeviceFromDB(userdata: User, id: Long): CreatedDeviceResponse? {
+    val randomId = (0..Long.MAX_VALUE).random()
     val selectMessage =
-        SelectDeviceMessage("select", "userDevices", DeviceCondition(userdata.username, userdata.password, id))
+        SelectDeviceMessage(
+            randomId,
+            "select",
+            "userDevices",
+            DeviceCondition(userdata.username, userdata.password, id)
+        )
     return runBlocking {
         getOrCreateDeviceInDB(selectMessage)
     }
 }
 
-fun createDeviceInDB(userdata: User, deviceType: String): CreatedDevice? {
+fun createDeviceInDB(userdata: User, deviceType: String): CreatedDeviceResponse? {
+    val randomId = (0..Long.MAX_VALUE).random()
     val data = DeviceRequestData(userdata.username, userdata.password, deviceType)
-    val insertMessage = InsertDeviceMessage("insert", "userDevices", data)
+    val insertMessage = InsertDeviceMessage(randomId, "insert", "userDevices", data)
     return runBlocking {
         getOrCreateDeviceInDB(insertMessage)
     }
 }
 
-private suspend fun getDevicesFromDB(userData: User): Array<CreatedDevice>? {
+private suspend fun getDevicesFromDB(userData: User): AllDevicesResponse? {
     val pubSubConnection = RedisConnection.client.connectPubSub()
     val pubSubCommands = pubSubConnection.sync()
-
+    val randomId = (0..Long.MAX_VALUE).random()
     val selectUserMessage =
-        SelectUserMessage("select", "userDevices", Conditions(userData.username, userData.password))
+        SelectUserMessage(randomId, "select", "userDevices", Conditions(userData.username, userData.password))
 
     val selectMessageJson = mapper.writeValueAsString(selectUserMessage)
-    val deferredResponse = CompletableDeferred<Array<CreatedDevice>>()
+    val deferredResponse = CompletableDeferred<AllDevicesResponse>()
 
     pubSubConnection.addListener(object : RedisPubSubAdapter<String, String>() {
         override fun message(channel: String, message: String) {
             if (channel == receiveChannel) {
                 //MutableList
-                val devices = mapper.readValue(message, Array<CreatedDevice>::class.java)
-                deferredResponse.complete(devices)
+                val devices = mapper.readValue(message, AllDevicesResponse::class.java)
+                if (selectUserMessage.req == devices.req) {
+                    deferredResponse.complete(devices)
+                }
             }
         }
     })
@@ -66,19 +74,33 @@ private suspend fun getDevicesFromDB(userData: User): Array<CreatedDevice>? {
     return response
 }
 
-private suspend fun getOrCreateDeviceInDB(message: Any): CreatedDevice? {
+private suspend fun getOrCreateDeviceInDB(message: Any): CreatedDeviceResponse? {
     val pubSubConnection = RedisConnection.client.connectPubSub()
     val pubSubCommands = pubSubConnection.sync()
 
     val messageJson = mapper.writeValueAsString(message)
 
-    val deferredResponse = CompletableDeferred<CreatedDevice?>()
+    val tmp1 = message as? SelectDeviceMessage
+    val tmp2 = message as? InsertDeviceMessage
+    var req: Long = 0
+    if (tmp1 == null) {
+        if (tmp2 != null) {
+            req = tmp2.req
+        }
+    } else {
+        req = tmp1.req
+    }
+
+
+    val deferredResponse = CompletableDeferred<CreatedDeviceResponse?>()
 
     pubSubConnection.addListener(object : RedisPubSubAdapter<String, String>() {
         override fun message(channel: String, message: String) {
             if (channel == receiveChannel) {
-                val createdDevice = mapper.readValue(message, CreatedDevice::class.java)
-                deferredResponse.complete(createdDevice)
+                val createdDevice = mapper.readValue(message, CreatedDeviceResponse::class.java)
+                if (req == createdDevice.req) {
+                    deferredResponse.complete(createdDevice)
+                }
             }
         }
     })

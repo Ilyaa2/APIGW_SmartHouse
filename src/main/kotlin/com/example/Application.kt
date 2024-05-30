@@ -49,8 +49,6 @@ suspend fun startRedisListener() {
     val pubSubCommands = pubSubConnection.sync()
     val client = HttpClient(CIO)
 
-    //todo просто возвращаю message
-    //todo сделать прослушивание канала alarm в который посылаются сообщений и отправка ире
     //alarm    -       device_type/event
     pubSubConnection.addListener(object : RedisPubSubAdapter<String, String>() {
         override fun message(channel: String, message: String) {

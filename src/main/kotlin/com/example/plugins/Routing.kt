@@ -21,16 +21,19 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.atomicfu.atomic
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 object SessionStorage {
     val sessions = ConcurrentHashMap<String, User>()
+    val requestCounter = atomic(0)
 }
 
 fun Application.configureRouting() {
     routing {
         post("/registration") {
+            SessionStorage.requestCounter.incrementAndGet()
             val user: User = call.receive<User>()
             user.password = hashPassword(user.password)
 
@@ -47,6 +50,7 @@ fun Application.configureRouting() {
         }
 
         post("/login") {
+            SessionStorage.requestCounter.incrementAndGet()
             val user = call.receive<User>()
             user.password = hashPassword(user.password)
 
@@ -64,6 +68,7 @@ fun Application.configureRouting() {
         }
 
         get("/device") {
+            SessionStorage.requestCounter.incrementAndGet()
             val token = call.request.header("Authorization")
             if (token == null || !SessionStorage.sessions.containsKey(token)) {
                 call.respond(HttpStatusCode.Unauthorized, "Invalid or missing token")
@@ -82,6 +87,7 @@ fun Application.configureRouting() {
         }
 
         get("/device/{id}") {
+            SessionStorage.requestCounter.incrementAndGet()
             val token = call.request.header("Authorization")
             if (token == null || !SessionStorage.sessions.containsKey(token)) {
                 call.respond(HttpStatusCode.Unauthorized, "Invalid or missing token")
@@ -108,6 +114,7 @@ fun Application.configureRouting() {
         }
 
         post("/device") {
+            SessionStorage.requestCounter.incrementAndGet()
             val token = call.request.header("Authorization")
             if (token == null || !SessionStorage.sessions.containsKey(token)) {
                 call.respond(HttpStatusCode.Unauthorized, "Invalid or missing token")
@@ -129,6 +136,7 @@ fun Application.configureRouting() {
         }
 
         post("/device/settings/{id}") {
+            SessionStorage.requestCounter.incrementAndGet()
             val token = call.request.header("Authorization")
             if (token == null || !SessionStorage.sessions.containsKey(token)) {
                 call.respond(HttpStatusCode.Unauthorized, "Invalid or missing token")
@@ -160,6 +168,7 @@ fun Application.configureRouting() {
         }
 
         post("/device/power/{id}") {
+            SessionStorage.requestCounter.incrementAndGet()
             val token = call.request.header("Authorization")
             if (token == null || !SessionStorage.sessions.containsKey(token)) {
                 call.respond(HttpStatusCode.Unauthorized, "Invalid or missing token")
@@ -196,6 +205,7 @@ fun Application.configureRouting() {
         }
 
         get("/device/info/{id}") {
+            SessionStorage.requestCounter.incrementAndGet()
             val token = call.request.header("Authorization")
             if (token == null || !SessionStorage.sessions.containsKey(token)) {
                 call.respond(HttpStatusCode.Unauthorized, "Invalid or missing token")

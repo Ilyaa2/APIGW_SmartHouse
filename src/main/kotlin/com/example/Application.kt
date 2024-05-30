@@ -31,10 +31,18 @@ fun Application.configureSerialization() {
 fun Application.module() {
     configureSerialization()
     configureRouting()
-
+    launchStats()
     //launchRedisListener()
 }
 
+fun Application.launchStats(){
+    GlobalScope.launch {
+        while (true) {
+            delay(10000)
+            println("Amount of requests: ${SessionStorage.requestCounter.value}")
+        }
+    }
+}
 fun Application.launchRedisListener() {
     // Запуск Redis слушателя в фоновом режиме
     GlobalScope.launch {

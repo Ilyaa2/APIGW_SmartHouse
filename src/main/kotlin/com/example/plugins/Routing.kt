@@ -13,6 +13,7 @@ import com.example.redis_transport.devices_service.createDevice
 import com.example.redis_transport.devices_service.getDeviceInfo
 import com.example.redis_transport.devices_service.setDeviceValue
 import com.example.redis_transport.devices_service.setModeOnDevice
+import com.example.redis_transport.log_service.sendLog
 import com.example.utils.hashPassword
 import com.example.utils.isDeviceModeCorrect
 import com.example.utils.parseResponse
@@ -35,6 +36,7 @@ fun Application.configureRouting() {
         post("/registration") {
             SessionStorage.requestCounter.incrementAndGet()
             val user: User = call.receive<User>()
+            sendLog("registration;request;$user")
             user.password = hashPassword(user.password)
 
             val createdUser = registerUserInDB(User(user.username, user.password))
@@ -45,13 +47,14 @@ fun Application.configureRouting() {
 
             val token = UUID.randomUUID().toString()
             SessionStorage.sessions[token] = user
-
+            sendLog("registration;response$token")
             call.respond(hashMapOf("token" to token))
         }
 
         post("/login") {
             SessionStorage.requestCounter.incrementAndGet()
             val user = call.receive<User>()
+            sendLog("login;request;$user")
             user.password = hashPassword(user.password)
 
             val isValid = loginUserInDB(user)
@@ -63,7 +66,7 @@ fun Application.configureRouting() {
 
             val token = UUID.randomUUID().toString()
             SessionStorage.sessions[token] = user
-
+            sendLog("registration;response;$token")
             call.respond(hashMapOf("token" to token))
         }
 
@@ -76,13 +79,15 @@ fun Application.configureRouting() {
             }
 
             val user = SessionStorage.sessions[token]!!
+            sendLog("$user;get:allDevices;request;")
+
             val devices = getAllDevicesFromDB(user)?.data
 
             if (devices == null) {
                 call.respond(HttpStatusCode.InternalServerError, "db service doesn't response")
                 return@get
             }
-
+            sendLog("$user;get:allDevices;response;$devices")
             call.respond(devices)
         }
 
@@ -98,10 +103,10 @@ fun Application.configureRouting() {
                 call.respond(HttpStatusCode.BadRequest, "id of device missed in the query")
                 return@get
             }
-
             val user = SessionStorage.sessions[token]!!
 
             val id = call.parameters["id"]!!.toLong()
+            sendLog("$user;get:device/{id};request;$id")
 
             val createdDevice = getDeviceFromDB(user, id)?.data
 
@@ -109,7 +114,7 @@ fun Application.configureRouting() {
                 call.respond(HttpStatusCode.InternalServerError, "db service doesn't response")
                 return@get
             }
-
+            sendLog("$user;get:device/{id};response;$id")
             call.respond(createdDevice)
         }
 
@@ -123,6 +128,7 @@ fun Application.configureRouting() {
 
             val user = SessionStorage.sessions[token]!!
             val deviceType = call.receive<DeviceType>()
+            sendLog("$user;post:device;request;$deviceType")
 
             val createdDevice = createDeviceInDB(user, deviceType.type)?.data
 
@@ -132,6 +138,7 @@ fun Application.configureRouting() {
             }
 
             createDevice(user.username, createdDevice)
+            sendLog("$user;post:device;response;$createdDevice")
             call.respond(createdDevice)
         }
 
@@ -152,6 +159,9 @@ fun Application.configureRouting() {
 
             val user = SessionStorage.sessions[token]!!
             val id = call.parameters["id"]!!.toLong()
+
+            sendLog("$user;post:device/settings/{id};request;$id;$settingValue")
+
             val response = setDeviceValue(user.username, id, settingValue.value)
 
             if (response == null) {
@@ -160,10 +170,12 @@ fun Application.configureRouting() {
             }
 
             val result = parseResponse(response)
-            if (result.wasError){
+            if (result.wasError) {
                 call.respond(HttpStatusCode.BadRequest, result.description)
+                sendLog("$user;post:device/settings/{id};response;$id;error:${result.description}")
             } else {
                 call.respond(HttpStatusCode.OK, result.description)
+                sendLog("$user;post:device/settings/{id};response;$id;ok:${result.description}")
             }
         }
 
@@ -189,6 +201,9 @@ fun Application.configureRouting() {
 
             val user = SessionStorage.sessions[token]!!
             val id = call.parameters["id"]!!.toLong()
+
+            sendLog("$user;post:device/power/{id};request;$id;${deviceMode}")
+
             val response = setModeOnDevice(user.username, id, deviceMode.mode)
 
             if (response == null) {
@@ -197,9 +212,11 @@ fun Application.configureRouting() {
             }
 
             val result = parseResponse(response)
-            if (result.wasError){
+            if (result.wasError) {
                 call.respond(HttpStatusCode.BadRequest, result.description)
+                sendLog("$user;post:device/power/{id};response;$id;error:${result.description}")
             } else {
+                sendLog("$user;post:device/power/{id};response;$id;ok")
                 call.respond(HttpStatusCode.OK)
             }
         }
@@ -219,6 +236,9 @@ fun Application.configureRouting() {
 
             val user = SessionStorage.sessions[token]!!
             val id = call.parameters["id"]!!.toLong()
+
+            sendLog("$user;get:device/info/{id};request;$id;")
+
             val response = getDeviceInfo(user.username, id)
 
             if (response == null) {
@@ -227,10 +247,12 @@ fun Application.configureRouting() {
             }
 
             val result = parseResponse(response)
-            if (result.wasError){
+            if (result.wasError) {
                 call.respond(HttpStatusCode.BadRequest, result.description)
+                sendLog("$user;get:device/info/{id};response;$id;error:${result.description}")
             } else {
                 call.respond(HttpStatusCode.OK, result.description)
+                sendLog("$user;get:device/info/{id};response;$id;error:${result.description}")
             }
         }
     }

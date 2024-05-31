@@ -56,7 +56,7 @@ private suspend fun sendMsgToDeviceService(channelName: String, sendMessage: Str
 
     pubSubCommands.subscribe(responseChannel)
 
-    RedisConnection.connection.async().publish(channelName, sendMessage)
+    RedisConnection.connection.async().publish("uid_$channelName", sendMessage)
 
     val response = withTimeoutOrNull(10000) { deferredResponse.await() }
 
